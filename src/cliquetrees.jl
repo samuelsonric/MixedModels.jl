@@ -1,6 +1,5 @@
 struct ChordalWorkspace{T}
     blocks::Vector{AbstractMatrix{T}}
-    matrix::SparseMatrixCSC{T, Int}
     indices::Vector{Vector{Int}}
 end
 
@@ -167,11 +166,11 @@ function _addcol!(
     return ptr
 end
 
-function _addblk!(nzval::Vector{T}, A::AbstractMatrix{T}, indices::Vector{Int}) where {T}
+function _addblk!(F::ChordalCholesky, A::AbstractMatrix{T}, P::Vector{Int}) where {T}
     src = _nonzeros(A)
 
-    for k in eachindex(indices)
-        nzval[indices[k]] = src[k]
+    for k in eachindex(P)
+        iszero(P[k]) || setflatindex!(F, src[k], P[k])
     end
 
     return
@@ -203,8 +202,19 @@ function _init(M::LinearMixedModel{T}; kw...) where {T}
     # construct uninitialized Cholesky factor
     F = ChordalCholesky{:L, T}(perm, ChordalSymbolic(tree))
 
-    # construct workkspace
-    W = ChordalWorkspace{T}(map(_similar, M.A), S, indices)
+    # construct mapping from blocks into Cholesky factor
+    P = flatindices(F, Symmetric(S, :L))
+
+    for blkptr in eachindex(indices)
+        index = indices[blkptr]
+
+        for i in eachindex(index)
+            index[i] = P[index[i]]
+        end
+    end
+
+    # construct workspace
+    W = ChordalWorkspace{T}(map(_similar, M.A), indices)
     return F, W
 end
 
@@ -239,12 +249,12 @@ function _transform!(
     blkptr = kp1choose2(length(M.reterms) + 1)
     copyto!(W.blocks[blkptr], M.A[blkptr])
 
-    # write `W.blocks` to `W.matrix`
+    # write `W.blocks` directly to `F`
+    fill!(F, zero(T))
+
     for blkptr in eachindex(W.blocks, W.indices)
-        _addblk!(nonzeros(W.matrix), W.blocks[blkptr], W.indices[blkptr])
+        _addblk!(F, W.blocks[blkptr], W.indices[blkptr])
     end
 
-    # write `W.matrix` to `F`.
-    copy!(F, sparse(Symmetric(W.matrix, :L)))
     return F
 end

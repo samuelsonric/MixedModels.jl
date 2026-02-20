@@ -49,7 +49,7 @@ using Tables: Tables, columntable
 using TypedTables: TypedTables, DictTable, FlexTable, Table
 
 using CliqueTrees: cliquetree, cliquetree!
-using CliqueTrees.Multifrontal: ChordalCholesky, ChordalSymbolic
+using CliqueTrees.Multifrontal: ChordalCholesky, ChordalSymbolic, flatindices, setflatindex!
 
 export @formula,
     AbstractReMat,
